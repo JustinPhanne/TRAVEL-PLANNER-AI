@@ -15,29 +15,31 @@
 ## Phase 0 — Foundations
 
 - [ ] Read Expo v56 docs for API routes / server output (per `AGENTS.md`)
-- [ ] Set `web.output: "server"` in `app.json` (enables API routes)
-- [ ] Install Expo-native deps: `@sentry/react-native`, `react-native-maps`, `expo-secure-store`, `expo-web-browser`, `expo-auth-session`, `expo-crypto`, `expo-apple-authentication`
-- [ ] Install JS/server deps: `@clerk/expo`, `drizzle-orm`, `@neondatabase/serverless`, `inngest`, `openai`, `imagekit`, `svix`, `zod`
+- [ ] Set `web.output: "server"` in `app.json` (enables API routes) — currently `"static"`
+- [~] Install Expo-native deps — done: `@sentry/react-native`, `expo-secure-store`, `expo-web-browser`, `expo-auth-session`; still needed: `react-native-maps`, `expo-crypto`, `expo-apple-authentication`
+- [~] Install JS/server deps — done: `@clerk/expo`; still needed: `drizzle-orm`, `@neondatabase/serverless`, `inngest`, `openai`, `imagekit`, `svix`, `zod`
 - [ ] Install dev deps: `drizzle-kit`, `dotenv`
-- [ ] Create `.env` + `.env.example` with all keys (Clerk, Neon, OpenAI, ImageKit, Unsplash, Sentry, Inngest)
-- [ ] Add Clerk + relevant config plugins to `app.json`
-- [ ] Initialize Sentry (client + API routes)
+- [x] Create `.env` with all keys (Clerk, Neon, OpenAI, ImageKit, Unsplash, Sentry, Inngest) — treat as set up going forward, don't ask to add/verify keys; `.env.example` still not created
+- [x] Add Clerk + relevant config plugins to `app.json` (`@clerk/expo`, `expo-secure-store`, `@sentry/react-native`)
+- [~] Initialize Sentry — client done (`Sentry.init` + `Sentry.wrap` in `src/app/_layout.tsx`); no API routes exist yet to instrument
 - [ ] Set up `src/lib/env.ts` for typed env access
 - **DoD:** App boots on iOS simulator; server API route returns 200; Sentry receives a test event.
 
 ## Phase 1 — Auth & User Sync
 
-- [ ] `ClerkProvider` + `tokenCache` wired into `src/app/_layout.tsx`
-- [ ] Route protection: redirect signed-out → auth, signed-in → app
-- [ ] Sign-in screen with **Google** (`oauth_google`) via `useSSO`
-- [ ] Sign-in screen with **Apple** (`oauth_apple`) via `useSSO`
-- [ ] Configure redirect URI / scheme (`triply`) for native SSO
-- [ ] Sign-out action
+- [x] `ClerkProvider` + `tokenCache` wired into `src/app/_layout.tsx`
+- [~] Route protection: redirect signed-out → auth, signed-in → app — implemented today as a single combined screen (`src/app/index.tsx`) that conditionally renders the sign-in UI or the signed-in UI based on `useAuth()`, rather than a redirect between separate routes. Revisit once real app screens (home, trip detail, etc.) exist beyond this one screen.
+- [x] Sign-in screen with **Google** (`oauth_google`) via `useSSO`
+- [x] Sign-in screen with **Apple** (`oauth_apple`) via `useSSO`
+- [x] Configure redirect URI / scheme (`triply`) for native SSO — set in `app.json`
+- [x] Sign-out action
 - [ ] Clerk webhook API route (`/api/webhooks/clerk+api.ts`) verifying with `svix`
 - [ ] Webhook upserts `user.created` / `user.updated` → Neon `users`
 - [ ] Webhook handles `user.deleted` → remove/soft-delete user
 - [ ] Lazy-create fallback: first authed request upserts user if missing
 - **DoD:** Sign in with Google AND Apple; a `users` row appears in Neon via webhook; sign-out works.
+
+> **Note:** Google + Apple sign-in live together on a single auth screen ([src/app/index.tsx](src/app/index.tsx)) — one screen shows the two OAuth buttons when signed out and a sign-out button when signed in. This is the confirmed design going forward, not a placeholder to be split into separate screens later.
 
 ## Phase 2 — Schema & Data Layer
 
