@@ -14,14 +14,14 @@
 
 ## Phase 0 — Foundations
 
-- [ ] Read Expo v56 docs for API routes / server output (per `AGENTS.md`)
-- [ ] Set `web.output: "server"` in `app.json` (enables API routes) — currently `"static"`
+- [x] Read Expo v57 docs for API routes / server output (per `AGENTS.md`)
+- [x] Set `web.output: "server"` in `app.json` (enables API routes) — was `"static"`
 - [~] Install Expo-native deps — done: `@sentry/react-native`, `expo-secure-store`, `expo-web-browser`, `expo-auth-session`; still needed: `react-native-maps`, `expo-crypto`, `expo-apple-authentication`
-- [~] Install JS/server deps — done: `@clerk/expo`; still needed: `drizzle-orm`, `@neondatabase/serverless`, `inngest`, `openai`, `imagekit`, `svix`, `zod`
-- [ ] Install dev deps: `drizzle-kit`, `dotenv`
+- [~] Install JS/server deps — done: `@clerk/expo`, `drizzle-orm`, `@neondatabase/serverless`, `inngest`, `@clerk/backend` (used for webhook verification instead of raw `svix` — `@clerk/backend/webhooks` wraps it); still needed: `openai`, `imagekit`, `zod`
+- [x] Install dev deps: `drizzle-kit`, `dotenv`
 - [x] Create `.env` with all keys (Clerk, Neon, OpenAI, ImageKit, Unsplash, Sentry, Inngest) — treat as set up going forward, don't ask to add/verify keys; `.env.example` still not created
 - [x] Add Clerk + relevant config plugins to `app.json` (`@clerk/expo`, `expo-secure-store`, `@sentry/react-native`)
-- [~] Initialize Sentry — client done (`Sentry.init` + `Sentry.wrap` in `src/app/_layout.tsx`); no API routes exist yet to instrument
+- [~] Initialize Sentry — client done (`Sentry.init` + `Sentry.wrap` in `src/app/_layout.tsx`); API routes now exist (`/api/inngest`, `/api/webhooks/clerk`) but aren't Sentry-instrumented yet (tracked in Phase 6)
 - [ ] Set up `src/lib/env.ts` for typed env access
 - **DoD:** App boots on iOS simulator; server API route returns 200; Sentry receives a test event.
 
@@ -33,19 +33,19 @@
 - [x] Sign-in screen with **Apple** (`oauth_apple`) via `useSSO`
 - [x] Configure redirect URI / scheme (`triply`) for native SSO — set in `app.json`
 - [x] Sign-out action
-- [ ] Clerk webhook API route (`/api/webhooks/clerk+api.ts`) verifying with `svix`
-- [ ] Webhook upserts `user.created` / `user.updated` → Neon `users`
-- [ ] Webhook handles `user.deleted` → remove/soft-delete user
+- [x] Clerk webhook API route (`/api/webhooks/clerk+api.ts`) verifying via `@clerk/backend/webhooks` (`verifyWebhook`, wraps `svix`) — sends `clerk/user.created`, `clerk/user.updated`, and `clerk/user.deleted` events to the local Inngest dev server
+- [x] Webhook upserts `user.created` → Neon `users` (via Inngest function `syncUserFromClerk` in `src/inngest/functions.ts`, upsert on `clerkId` conflict) and `user.updated` (via separate `updateUserFromClerk` function, same upsert logic) — two distinct functions so each shows up separately in the Inngest dashboard
+- [x] Webhook handles `user.deleted` → removes user row (via Inngest function `deleteUserFromClerk` in `src/inngest/functions.ts`, hard delete by `clerkId`)
 - [ ] Lazy-create fallback: first authed request upserts user if missing
-- **DoD:** Sign in with Google AND Apple; a `users` row appears in Neon via webhook; sign-out works.
+- **DoD:** Sign in with Google AND Apple; a `users` row appears in Neon via webhook; sign-out works. Inngest wiring done in dev mode only (`INNGEST_DEV=1`, no event/signing keys) — requires `npx inngest-cli@latest dev` running locally and ngrok tunneling `/api/webhooks/clerk` to Clerk's dashboard to test end-to-end.
 
 > **Note:** Google + Apple sign-in live together on a single auth screen ([src/app/index.tsx](src/app/index.tsx)) — one screen shows the two OAuth buttons when signed out and a sign-out button when signed in. This is the confirmed design going forward, not a placeholder to be split into separate screens later.
 
 ## Phase 2 — Schema & Data Layer
 
-- [ ] Drizzle config (`drizzle.config.ts`) pointed at Neon
-- [ ] Neon serverless client (`src/db/index.ts`)
-- [ ] `users` table (Clerk userId PK, email, name, imageUrl, timestamps)
+- [x] Drizzle config (`drizzle.config.ts`) pointed at Neon
+- [x] Neon serverless client (`src/db/index.ts`, `neon-http` driver)
+- [x] `users` table (Clerk userId PK, email, name, imageUrl, timestamps) — schema in `src/db/schema.ts`, pushed to Neon via `drizzle-kit push` (no migration files yet — this project is on the push workflow, not generate+migrate)
 - [ ] `trips` table (userId FK, destination, startDate, numDays, numTravelers, budgetTier enum, interests, status enum, coverImageUrl, itinerary jsonb, budgetBreakdown jsonb, errorMessage, timestamps)
 - [ ] `chat_messages` table (tripId FK cascade, role, content, createdAt)
 - [ ] `generation_usage` table/counter (per user per day) for safety cap
