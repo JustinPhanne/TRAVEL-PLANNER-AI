@@ -1,11 +1,16 @@
 import { serve } from "inngest/next";
 
 import { inngest } from "@/inngest/client";
-import { deleteUserFromClerk, syncUserFromClerk, updateUserFromClerk } from "@/inngest/functions";
+import {
+  deleteUserFromClerk,
+  generateTrip,
+  syncUserFromClerk,
+  updateUserFromClerk,
+} from "@/inngest/functions";
 
 const handler = serve({
   client: inngest,
-  functions: [syncUserFromClerk, updateUserFromClerk, deleteUserFromClerk],
+  functions: [syncUserFromClerk, updateUserFromClerk, deleteUserFromClerk, generateTrip],
 });
 
 export const GET = handler.GET;
