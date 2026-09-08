@@ -23,8 +23,10 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 # Navigation
 
-- **Tab bars always use native tabs via `@expo/ui`** (`Host` + `Tabs`, SwiftUI-backed on iOS, Jetpack Compose on Android). Never use `expo-router`'s built-in `<Tabs>` layout or any other JS-rendered tab bar — this is a hard rule, not a default. Use `expo-router`'s stack/layout primitives for everything else (screens, stacks, modals).
-- **Web is not a first-class target for tab navigation.** `@expo/ui` native tabs don't render on web, and per the rule above there's no JS tab fallback — tabbed sections of the app are native-only (iOS/Android). Don't build a web tab bar substitute; treat those screens as unsupported/best-effort on web.
+- **Tab bars always use `expo-router/unstable-native-tabs`** (`NativeTabs` + `NativeTabs.Trigger`, rendering the real system tab bar — SwiftUI on iOS, Jetpack Compose on Android). Never use `expo-router`'s built-in `<Tabs>` layout or any other JS-rendered tab bar — this is a hard rule, not a default.
+  - Correction (2026-09-03): earlier guidance here pointed at `@expo/ui`'s `Host`/`Tabs`. That component (`TabView` in `@expo/ui`) is iOS-only in the installed version (`~57.0.12`, no Android implementation) and its own docs recommend `expo-router/unstable-native-tabs` for exactly this routed bottom-tab use case — so that's the mandated API going forward.
+  - Use `expo-router`'s stack/layout primitives for everything else (screens, stacks, modals).
+- **Web is not a first-class target for tab navigation.** Native tabs don't render on web, and per the rule above there's no JS tab fallback — tabbed sections of the app are native-only (iOS/Android). Don't build a web tab bar substitute; treat those screens as unsupported/best-effort on web.
 
 # Styling
 

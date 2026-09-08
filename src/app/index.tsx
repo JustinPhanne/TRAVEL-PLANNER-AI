@@ -10,8 +10,8 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { router } from "expo-router";
-import { useAuth, useSSO, useUser } from "@clerk/expo";
+import { Redirect, router } from "expo-router";
+import { useAuth, useSSO } from "@clerk/expo";
 import Svg, { Path } from "react-native-svg";
 
 const BG_IMAGE = require("../../assets/images/auth-screen-bg.png");
@@ -74,54 +74,6 @@ function AuthBackground({ children }: { children: React.ReactNode }) {
       />
       {children}
     </View>
-  );
-}
-
-function SignedInScreen() {
-  const { signOut } = useAuth();
-  const { user } = useUser();
-  const [signingOut, setSigningOut] = useState(false);
-
-  const handleSignOut = async () => {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
-  return (
-    <AuthBackground>
-      <SafeAreaView edges={["bottom"]} className="flex-1 justify-end">
-        <View className="px-8 pb-4">
-          <Text className="text-center text-[30px] font-bold leading-[36px] text-white">
-            You&apos;re signed in
-          </Text>
-          <Text className="mt-4 text-center text-[17px] text-white/90">
-            {user?.primaryEmailAddress?.emailAddress ??
-              user?.fullName ??
-              "Welcome back"}
-          </Text>
-
-          <View className="mt-9">
-            <Pressable
-              onPress={handleSignOut}
-              disabled={signingOut}
-              className="h-14 flex-row items-center justify-center rounded-full bg-white active:opacity-90 disabled:opacity-60"
-            >
-              {signingOut ? (
-                <ActivityIndicator color="#1A1A1A" />
-              ) : (
-                <Text className="text-[17px] font-semibold text-[#1A1A1A]">
-                  Sign out
-                </Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    </AuthBackground>
   );
 }
 
@@ -224,5 +176,5 @@ export default function Index() {
     );
   }
 
-  return isSignedIn ? <SignedInScreen /> : <SignInScreen />;
+  return isSignedIn ? <Redirect href="/(tabs)" /> : <SignInScreen />;
 }
