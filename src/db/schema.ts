@@ -1,5 +1,6 @@
 import {
   date,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -65,6 +66,28 @@ export const tripsTable = pgTable("trips", {
 
 export type InsertTrip = typeof tripsTable.$inferInsert;
 export type SelectTrip = typeof tripsTable.$inferSelect;
+
+export const assistantMessageRoleEnum = pgEnum("assistant_message_role", [
+  "user",
+  "assistant",
+]);
+
+export const assistantMessagesTable = pgTable(
+  "assistant_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => usersTable.clerkId, { onDelete: "cascade" }),
+    role: assistantMessageRoleEnum("role").notNull(),
+    text: text("text").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("assistant_messages_user_id_created_at_idx").on(table.userId, table.createdAt)],
+);
+
+export type InsertAssistantMessage = typeof assistantMessagesTable.$inferInsert;
+export type SelectAssistantMessage = typeof assistantMessagesTable.$inferSelect;
 
 export const generationUsageTable = pgTable(
   "generation_usage",

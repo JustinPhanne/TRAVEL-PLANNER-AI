@@ -13,6 +13,7 @@ import { router } from "expo-router";
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 
+import { Sentry } from "@/lib/sentry";
 import type { BudgetTier, TravelPace } from "@/lib/trip-schema";
 
 function toISODate(date: Date) {
@@ -183,6 +184,9 @@ export default function GenerateTripScreen() {
       const { id } = (await res.json()) as { id: string };
       router.replace(`/trip/${id}`);
     } catch (err) {
+      Sentry.logger.error(Sentry.logger.fmt`Trip generation request failed: ${err}`, {
+        destination: destination.trim(),
+      });
       Alert.alert(
         "Couldn't start trip generation",
         err instanceof Error ? err.message : "Please try again.",

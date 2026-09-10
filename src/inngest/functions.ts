@@ -6,6 +6,7 @@ import { usersTable, type SelectTrip } from "@/db/schema";
 import { getTripById, setTripFailed, setTripGenerating, setTripReady } from "@/db/trips";
 import { GEMINI_MODEL, gemini } from "@/lib/gemini";
 import { uploadCoverImageFromUrl } from "@/lib/imagekit";
+import { Sentry } from "@/lib/sentry";
 import {
   TRIP_GENERATION_JSON_SCHEMA,
   tripGenerationResultSchema,
@@ -20,6 +21,9 @@ async function upsertUserFromClerkEvent(user: UserJSON) {
   )?.email_address;
 
   if (!email) {
+    Sentry.logger.error("Clerk user has no primary email address", {
+      clerk_user_id: user.id,
+    });
     throw new Error(`Clerk user ${user.id} has no primary email address`);
   }
 
@@ -37,6 +41,8 @@ async function upsertUserFromClerkEvent(user: UserJSON) {
       target: usersTable.clerkId,
       set: { email, name, imageUrl: user.image_url ?? null },
     });
+
+  Sentry.logger.info("User synced from Clerk", { clerk_user_id: user.id, email });
 }
 
 export const syncUserFromClerk = inngest.createFunction(
@@ -76,6 +82,8 @@ export const deleteUserFromClerk = inngest.createFunction(
     await step.run("delete-user", async () => {
       await db.delete(usersTable).where(eq(usersTable.clerkId, clerkId));
     });
+
+    Sentry.logger.info("User deleted from Clerk sync", { clerk_user_id: clerkId });
   },
 );
 
@@ -110,11 +118,16 @@ export const generateTrip = inngest.createFunction(
     retries: 3,
     onFailure: async ({ event, error }) => {
       const { tripId } = event.data.event.data as { tripId: string };
+      Sentry.logger.error("Trip generation failed permanently", {
+        trip_id: tripId,
+        error: error.message,
+      });
       await setTripFailed(tripId, error.message || "Trip generation failed");
     },
   },
   async ({ event, step }) => {
     const { tripId } = event.data as { tripId: string };
+    const startedAt = Date.now();
 
     const trip = await step.run("load-trip", async () => {
       const row = await getTripById(tripId);
@@ -122,44 +135,90 @@ export const generateTrip = inngest.createFunction(
       return row;
     });
 
+    Sentry.logger.info("Trip generation started", {
+      trip_id: tripId,
+      destination: trip.destination,
+      num_days: trip.numDays,
+    });
+
     await step.run("set-generating", () => setTripGenerating(tripId));
 
     const result = await step.run("generate-itinerary", async () => {
-      const response = await gemini.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: [
-          "You are a meticulous travel planner. Respond only with the requested JSON — no prose.",
-          "",
-          buildTripPrompt(trip),
-        ].join("\n"),
-        config: {
-          responseMimeType: "application/json",
-          responseJsonSchema: TRIP_GENERATION_JSON_SCHEMA,
+      return Sentry.startSpan(
+        {
+          op: "gen_ai.generate_content",
+          name: `gemini ${GEMINI_MODEL}`,
+          attributes: {
+            "gen_ai.operation.name": "generate_content",
+            "gen_ai.provider.name": "google",
+            "gen_ai.request.model": GEMINI_MODEL,
+          },
         },
-      });
+        async (span) => {
+          const response = await gemini.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: [
+              "You are a meticulous travel planner. Respond only with the requested JSON — no prose.",
+              "",
+              buildTripPrompt(trip),
+            ].join("\n"),
+            config: {
+              responseMimeType: "application/json",
+              responseJsonSchema: TRIP_GENERATION_JSON_SCHEMA,
+            },
+          });
 
-      const content = response.text;
-      if (!content) {
-        const blockReason = response.promptFeedback?.blockReason;
-        throw new Error(
-          blockReason ? `Gemini blocked the request: ${blockReason}` : "Gemini returned no content",
-        );
-      }
+          if (response.usageMetadata) {
+            span.setAttribute(
+              "gen_ai.usage.input_tokens",
+              response.usageMetadata.promptTokenCount ?? 0,
+            );
+            span.setAttribute(
+              "gen_ai.usage.output_tokens",
+              response.usageMetadata.candidatesTokenCount ?? 0,
+            );
+          }
 
-      const parsed = tripGenerationResultSchema.safeParse(JSON.parse(content));
-      if (!parsed.success) {
-        throw new Error(`Gemini output failed schema validation: ${parsed.error.message}`);
-      }
-      return parsed.data;
+          const content = response.text;
+          if (!content) {
+            const blockReason = response.promptFeedback?.blockReason;
+            Sentry.logger.error("Gemini returned no content", {
+              trip_id: tripId,
+              block_reason: blockReason ?? null,
+            });
+            throw new Error(
+              blockReason
+                ? `Gemini blocked the request: ${blockReason}`
+                : "Gemini returned no content",
+            );
+          }
+
+          const parsed = tripGenerationResultSchema.safeParse(JSON.parse(content));
+          if (!parsed.success) {
+            Sentry.logger.error("Gemini output failed schema validation", {
+              trip_id: tripId,
+              error: parsed.error.message,
+            });
+            throw new Error(`Gemini output failed schema validation: ${parsed.error.message}`);
+          }
+          return parsed.data;
+        },
+      );
     });
 
     const coverImage = await step.run("cover-image", async () => {
       try {
-        const found = await findDestinationCoverImage(trip.destination);
+        const found = await Sentry.startSpan(
+          { op: "http.client", name: "unsplash.search" },
+          () => findDestinationCoverImage(trip.destination),
+        );
         if (!found) return null;
 
         const safeName = trip.destination.replace(/[^a-zA-Z0-9-]+/g, "-");
-        const uploadedUrl = await uploadCoverImageFromUrl(found.url, `${safeName}-${tripId}.jpg`);
+        const uploadedUrl = await Sentry.startSpan(
+          { op: "http.client", name: "imagekit.upload" },
+          () => uploadCoverImageFromUrl(found.url, `${safeName}-${tripId}.jpg`),
+        );
         return {
           url: uploadedUrl,
           photographerName: found.photographerName,
@@ -167,7 +226,10 @@ export const generateTrip = inngest.createFunction(
         };
       } catch (err) {
         // Cover image is best-effort — a trip is still usable without one.
-        console.error("Cover image fetch/upload failed:", err);
+        Sentry.logger.warn(Sentry.logger.fmt`Cover image fetch/upload failed: ${err}`, {
+          trip_id: tripId,
+          destination: trip.destination,
+        });
         return null;
       }
     });
@@ -181,5 +243,13 @@ export const generateTrip = inngest.createFunction(
         coverImageAttributionUrl: coverImage?.photographerProfileUrl ?? null,
       }),
     );
+
+    Sentry.logger.info("Trip generation completed", {
+      trip_id: tripId,
+      destination: trip.destination,
+      num_days: trip.numDays,
+      duration_ms: Date.now() - startedAt,
+      has_cover_image: coverImage != null,
+    });
   },
 );
