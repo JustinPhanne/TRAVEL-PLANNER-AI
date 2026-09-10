@@ -9,6 +9,7 @@ import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 
 import type { SelectTrip } from "@/db/schema";
+import { Sentry } from "@/lib/sentry";
 import type { Itinerary } from "@/lib/trip-schema";
 
 const MAP_PIN_IMAGE = require("../../../design/trip-loading-screen-demo.png");
@@ -233,6 +234,9 @@ export default function TripDetailScreen() {
         }
       } catch (err) {
         if (!cancelled) {
+          Sentry.logger.error(Sentry.logger.fmt`Trip status poll failed: ${err}`, {
+            trip_id: id,
+          });
           setLoadError(err instanceof Error ? err.message : "Something went wrong.");
         }
       }
@@ -258,6 +262,7 @@ export default function TripDetailScreen() {
       }
       setRefreshKey((k) => k + 1);
     } catch (err) {
+      Sentry.logger.error(Sentry.logger.fmt`Trip retry request failed: ${err}`, { trip_id: id });
       setLoadError(err instanceof Error ? err.message : "Couldn't retry generation.");
     } finally {
       setIsRetrying(false);
@@ -275,6 +280,7 @@ export default function TripDetailScreen() {
       }
       router.replace("/(tabs)");
     } catch (err) {
+      Sentry.logger.error(Sentry.logger.fmt`Trip delete request failed: ${err}`, { trip_id: id });
       setIsDeleting(false);
       Alert.alert(
         "Couldn't delete trip",

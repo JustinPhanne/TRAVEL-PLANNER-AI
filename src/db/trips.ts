@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { generationUsageTable, tripsTable, type SelectTrip } from "@/db/schema";
@@ -43,6 +43,14 @@ export async function createTrip(input: {
 }): Promise<SelectTrip> {
   const [trip] = await db.insert(tripsTable).values(input).returning();
   return trip;
+}
+
+export async function getTripsForUser(userId: string): Promise<SelectTrip[]> {
+  return db
+    .select()
+    .from(tripsTable)
+    .where(eq(tripsTable.userId, userId))
+    .orderBy(desc(tripsTable.createdAt));
 }
 
 export async function getTripForUser(
