@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,8 +13,17 @@ import { router } from "expo-router";
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 
+import { getTravelPreferences } from "@/lib/preferences";
 import { Sentry } from "@/lib/sentry";
-import type { BudgetTier, TravelPace } from "@/lib/trip-schema";
+import {
+  BUDGET_TIER_LABELS,
+  BUDGET_TIER_VALUES,
+  BUDGET_TIERS,
+  INTERESTS,
+  TRAVEL_PACE_LABELS,
+  TRAVEL_PACE_VALUES,
+  TRAVEL_PACES,
+} from "@/lib/travel-options";
 
 function toISODate(date: Date) {
   const year = date.getFullYear();
@@ -24,32 +33,6 @@ function toISODate(date: Date) {
 }
 
 const BLUE = "#3B7CF0";
-const BUDGET_TIERS = ["Budget", "Comfort", "Luxury"] as const;
-const TRAVEL_PACES = ["Relaxed", "Balanced", "Fast-paced"] as const;
-
-const BUDGET_TIER_VALUES: Record<(typeof BUDGET_TIERS)[number], BudgetTier> = {
-  Budget: "budget",
-  Comfort: "comfort",
-  Luxury: "luxury",
-};
-
-const TRAVEL_PACE_VALUES: Record<(typeof TRAVEL_PACES)[number], TravelPace> = {
-  Relaxed: "relaxed",
-  Balanced: "balanced",
-  "Fast-paced": "fast-paced",
-};
-const INTERESTS = [
-  "Adventure",
-  "Beaches",
-  "Food & drink",
-  "Culture",
-  "Nature",
-  "Nightlife",
-  "Shopping",
-  "History",
-  "Relaxation",
-  "Road trips",
-];
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTH_NAMES = [
@@ -102,6 +85,20 @@ export default function GenerateTripScreen() {
   const [interests, setInterests] = useState<string[]>(["Beaches", "Food & drink"]);
   const [pace, setPace] = useState<(typeof TRAVEL_PACES)[number]>("Relaxed");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const saved = await getTravelPreferences();
+      if (cancelled || saved.interests.length === 0) return;
+      setBudget(BUDGET_TIER_LABELS[saved.budgetTier]);
+      setPace(TRAVEL_PACE_LABELS[saved.travelPace]);
+      setInterests(saved.interests);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const calendarDays = useMemo(() => {
     const firstDay = startOfMonth(visibleMonth);
