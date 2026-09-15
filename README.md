@@ -2,7 +2,7 @@
   <img src="design/logo.png" alt="Triply logo" width="110" />
 </p>
 
-<h1 align="center">Triply</h1>
+<h1 align="center">TRAVEL-PLANNER</h1>
 
 <p align="center">
   An AI trip planner that turns a destination and a few preferences into a full itinerary and budget breakdown.
