@@ -20,7 +20,7 @@
 
 ## Overview
 
-Triply is a mobile-first travel app: users sign in, describe a trip (destination, dates, travelers, budget tier, interests), and an AI generation pipeline produces a day-by-day itinerary and budget breakdown. Users can chat with an AI assistant to refine a trip, browse past trips, and manage their profile and preferences.
+TRAVEL-PLANNER is a mobile-first travel app: users sign in, describe a trip (destination, dates, travelers, budget tier, interests), and an AI generation pipeline produces a day-by-day itinerary and budget breakdown. Users can chat with an AI assistant to refine a trip, browse past trips, and manage their profile and preferences.
 
 Built as a full end-to-end product — native mobile client, authentication, database, background job processing, and third-party integrations — rather than just a UI shell.
 
